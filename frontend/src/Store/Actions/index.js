@@ -3,7 +3,7 @@ import * as author from './authorActions';
 import * as authorEditor from './authorEditorActions';
 import * as authorHistory from './authorHistoryActions';
 import * as authorIndex from './authorIndexActions';
-import * as blacklist from './blacklistActions';
+import * as blocklist from './blocklistActions';
 import * as books from './bookActions';
 import * as bookFiles from './bookFileActions';
 import * as bookHistory from './bookHistoryActions';
@@ -30,7 +30,7 @@ import * as wanted from './wantedActions';
 
 export default [
   app,
-  blacklist,
+  blocklist,
   captcha,
   calendar,
   commands,
