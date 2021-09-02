@@ -17,7 +17,7 @@ using NzbDrone.Core.Parser;
 
 namespace NzbDrone.Core.MetadataSource.Goodreads
 {
-    public class GoodreadsProxy : IProvideAuthorInfo, IProvideBookInfo
+    public class GoodreadsProxy : IProvideBookInfo
     {
         private static readonly RegexReplace FullSizeImageRegex = new RegexReplace(@"\._[SU][XY]\d+_.jpg$",
                                                                                    ".jpg",
