@@ -6,6 +6,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Calibre;
+using NzbDrone.Core.Comics;
 using NzbDrone.Core.ImportLists;
 using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.MediaFiles;
@@ -35,6 +36,7 @@ namespace NzbDrone.Core.Profiles.Metadata
 
         private readonly IMetadataProfileRepository _profileRepository;
         private readonly IAuthorService _authorService;
+        private readonly IPublisherService _publisherService;
         private readonly IBookService _bookService;
         private readonly IEditionService _editionService;
         private readonly IMediaFileService _mediaFileService;
@@ -45,6 +47,7 @@ namespace NzbDrone.Core.Profiles.Metadata
 
         public MetadataProfileService(IMetadataProfileRepository profileRepository,
                                       IAuthorService authorService,
+                                      IPublisherService publisherService,
                                       IBookService bookService,
                                       IEditionService editionService,
                                       IMediaFileService mediaFileService,
@@ -55,6 +58,7 @@ namespace NzbDrone.Core.Profiles.Metadata
         {
             _profileRepository = profileRepository;
             _authorService = authorService;
+            _publisherService = publisherService;
             _bookService = bookService;
             _editionService = editionService;
             _mediaFileService = mediaFileService;

@@ -650,6 +650,19 @@ namespace NzbDrone.Core.Parser
             return NormalizeRegex.Replace(name).ToLower().RemoveAccent();
         }
 
+        public static string CleanPublisherName(this string name)
+        {
+            // If Title only contains numbers return it as is.
+            if (long.TryParse(name, out _))
+            {
+                return name;
+            }
+
+            name = PercentRegex.Replace(name, "percent");
+
+            return NormalizeRegex.Replace(name).ToLower().RemoveAccent();
+        }
+
         public static string NormalizeTrackTitle(this string title)
         {
             title = SpecialEpisodeWordRegex.Replace(title, string.Empty);

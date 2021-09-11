@@ -9,6 +9,7 @@ using NzbDrone.Common.Cache;
 using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Comics;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Profiles.Releases;
@@ -23,6 +24,7 @@ namespace NzbDrone.Core.Organizer
         string BuildBookPath(Author author);
         BasicNamingConfig GetBasicNamingConfig(NamingConfig nameSpec);
         string GetAuthorFolder(Author author, NamingConfig namingConfig = null);
+        string GetPublisherFolder(Publisher publisher, NamingConfig namingConfig = null);
     }
 
     public class FileNameBuilder : IBuildFileNames
@@ -168,6 +170,7 @@ namespace NzbDrone.Core.Organizer
             return basicNamingConfig;
         }
 
+        //REMOVE AFTER DONE WITH AUTHORS
         public string GetAuthorFolder(Author author, NamingConfig namingConfig = null)
         {
             if (namingConfig == null)
@@ -180,6 +183,20 @@ namespace NzbDrone.Core.Organizer
             AddAuthorTokens(tokenHandlers, author);
 
             return CleanFolderName(ReplaceTokens(namingConfig.AuthorFolderFormat, tokenHandlers, namingConfig));
+        }
+
+        public string GetPublisherFolder(Publisher publisher, NamingConfig namingConfig = null)
+        {
+            if (namingConfig == null)
+            {
+                namingConfig = _namingConfigService.GetConfig();
+            }
+
+            var tokenHandlers = new Dictionary<string, Func<TokenMatch, string>>(FileNameBuilderTokenEqualityComparer.Instance);
+
+            AddPublisherTokens(tokenHandlers, publisher);
+
+            return CleanFolderName(ReplaceTokens(namingConfig.PublisherFolderFormat, tokenHandlers, namingConfig));
         }
 
         public static string CleanTitle(string title)
@@ -216,6 +233,7 @@ namespace NzbDrone.Core.Organizer
             return name.Trim(' ', '.');
         }
 
+        //REMOVE AFTER DONE WITH AUTHORS
         private void AddAuthorTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, Author author)
         {
             tokenHandlers["{Author Name}"] = m => author.Name;
@@ -227,6 +245,20 @@ namespace NzbDrone.Core.Organizer
             {
                 tokenHandlers["{Author Disambiguation}"] = m => author.Metadata.Value.Disambiguation;
             }
+        }
+
+        private void AddPublisherTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, Publisher publisher)
+        {
+            tokenHandlers["{Publisher Name}"] = m => publisher.Name;
+            tokenHandlers["{Publisher CleanName}"] = m => CleanTitle(publisher.Name);
+            tokenHandlers["{Publisher NameThe}"] = m => TitleThe(publisher.Name);
+
+            //tokenHandlers["{Publisher SortName}"] = m => publisher.Metadata.Value.NameLastFirst;
+
+/*            if (publisher.Metadata.Value.Disambiguation != null)
+            {
+                tokenHandlers["{Author Disambiguation}"] = m => author.Metadata.Value.Disambiguation;
+            }*/
         }
 
         private void AddBookTokens(Dictionary<string, Func<TokenMatch, string>> tokenHandlers, Edition edition)
