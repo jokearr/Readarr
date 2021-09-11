@@ -637,6 +637,58 @@ namespace NzbDrone.Core.Parser
             return (book, string.Empty);
         }
 
+        public static (string, string) SplitComicTitle(this string comic, string publisher)
+        {
+            // Strip author from title, eg Tom Clancy: Ghost Protocol
+            if (comic.StartsWith($"{publisher}:"))
+            {
+                comic = comic.Split(':', 2)[1].Trim();
+            }
+
+            var parenthesis = comic.IndexOf('(');
+            var colon = comic.IndexOf(':');
+
+            string[] parts = null;
+
+            if (parenthesis > -1)
+            {
+                var endParenthesis = comic.IndexOf(')');
+                if (endParenthesis > -1 && !comic.Substring(parenthesis + 1, endParenthesis - parenthesis).Contains(' '))
+                {
+                    parenthesis = -1;
+                }
+            }
+
+            if (colon > -1 && parenthesis > -1)
+            {
+                if (colon < parenthesis)
+                {
+                    parts = comic.Split(':', 2);
+                }
+                else
+                {
+                    parts = comic.Split('(', 2);
+                    parts[1] = parts[1].TrimEnd(')');
+                }
+            }
+            else if (colon > -1)
+            {
+                parts = comic.Split(':', 2);
+            }
+            else if (parenthesis > -1)
+            {
+                parts = comic.Split('(');
+                parts[1] = parts[1].TrimEnd(')');
+            }
+
+            if (parts != null)
+            {
+                return (parts[0].Trim(), parts[1].TrimEnd(':').Trim());
+            }
+
+            return (comic, string.Empty);
+        }
+
         public static string CleanAuthorName(this string name)
         {
             // If Title only contains numbers return it as is.

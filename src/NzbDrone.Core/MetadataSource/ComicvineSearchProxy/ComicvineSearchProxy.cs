@@ -6,15 +6,15 @@ using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
-using NzbDrone.Core.Books;
+using NzbDrone.Core.Comics;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Http;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Parser;
 
-namespace NzbDrone.Core.MetadataSource.Goodreads
+namespace NzbDrone.Core.MetadataSource.Comicvine
 {
-    public class ComicvineSearchProxy : ISearchForNewAuthor, ISearchForNewBook, ISearchForNewEntity
+    public class ComicvineSearchProxy : ISearchForNewPublisher, ISearchForNewComic, ISearchForNewEntity
     {
         private static readonly RegexReplace FullSizeImageRegex = new RegexReplace(@"\._[SU][XY]\d+_.jpg$",
             ".jpg",
@@ -22,41 +22,42 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
 
         private static readonly Regex DuplicateSpacesRegex = new Regex(@"\s{2,}", RegexOptions.Compiled);
 
-        private static readonly Regex NoPhotoRegex = new Regex(@"/nophoto/(book|user)/",
+        private static readonly Regex NoPhotoRegex = new Regex(@"/nophoto/(comic|user)/",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly List<Regex> SeriesRegex = new List<Regex>
         {
             new Regex(@"\((?<series>[^,]+),\s+#(?<position>[\w\d\.]+)\)$", RegexOptions.Compiled),
-            new Regex(@"(The\s+(?<series>.+)\s+Series\s+Book\s+(?<position>[\w\d\.]+)\)$)", RegexOptions.Compiled)
+            new Regex(@"(The\s+(?<series>.+)\s+Series\s+Comic\s+(?<position>[\w\d\.]+)\)$)", RegexOptions.Compiled)
         };
 
         private readonly ICachedHttpResponseService _cachedHttpClient;
         private readonly Logger _logger;
-        private readonly IProvideBookInfo _bookInfo;
-        private readonly IAuthorService _authorService;
-        private readonly IBookService _bookService;
+        private readonly IProvideComicInfo _comicInfo;
+        private readonly IPublisherService _publisherService;
+        private readonly IComicService _comicService;
         private readonly IEditionService _editionService;
         private readonly IHttpRequestBuilderFactory _searchBuilder;
         private readonly ICached<HashSet<string>> _cache;
 
         public ComicvineSearchProxy(ICachedHttpResponseService cachedHttpClient,
-            IProvideBookInfo bookInfo,
-            IAuthorService authorService,
-            IBookService bookService,
+            IProvideComicInfo comicInfo,
+            IPublisherService publisherService,
+            IComicService comicService,
             IEditionService editionService,
             Logger logger,
             ICacheManager cacheManager)
         {
             _cachedHttpClient = cachedHttpClient;
-            _bookInfo = bookInfo;
-            _authorService = authorService;
-            _bookService = bookService;
+            _comicInfo = comicInfo;
+            _publisherService = publisherService;
+            _publisherService = publisherService;
+            _comicService = comicService;
             _editionService = editionService;
             _cache = cacheManager.GetCache<HashSet<string>>(GetType());
             _logger = logger;
 
-            _searchBuilder = new HttpRequestBuilder("https://www.goodreads.com/book/auto_complete")
+            _searchBuilder = new HttpRequestBuilder("https://www.comicvine.com/comic/auto_complete")
                 .AddQueryParam("format", "json")
                 .SetHeader("User-Agent",
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36")
@@ -64,14 +65,14 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
                 .CreateFactory();
         }
 
-        public List<Author> SearchForNewAuthor(string title)
+        public List<Publisher> SearchForNewPublisher(string title)
         {
-            var books = SearchForNewBook(title, null);
+            var comics = SearchForNewComic(title, null);
 
-            return books.Select(x => x.Author.Value).ToList();
+            return comics.Select(x => x.Publisher.Value).ToList();
         }
 
-        public List<Book> SearchForNewBook(string title, string author)
+        public List<Comic> SearchForNewComic(string title, string publisher)
         {
             try
             {
@@ -80,24 +81,24 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
                 var split = lowerTitle.Split(':');
                 var prefix = split[0];
 
-                if (split.Length == 2 && new[] { "readarr", "readarrid", "goodreads", "isbn", "asin" }.Contains(prefix))
+                if (split.Length == 2 && new[] { "readarr", "readarrid", "comicvine", "isbn", "asin" }.Contains(prefix))
                 {
                     var slug = split[1].Trim();
 
                     if (slug.IsNullOrWhiteSpace() || slug.Any(char.IsWhiteSpace))
                     {
-                        return new List<Book>();
+                        return new List<Comic>();
                     }
 
-                    if (prefix == "goodreads" || prefix == "readarr" || prefix == "readarrid")
+                    if (prefix == "comicvine" || prefix == "readarr" || prefix == "readarrid")
                     {
                         var isValid = int.TryParse(slug, out var searchId);
                         if (!isValid)
                         {
-                            return new List<Book>();
+                            return new List<Comic>();
                         }
 
-                        return SearchByGoodreadsId(searchId);
+                        return SearchByComicvineId(searchId);
                     }
                     else if (prefix == "isbn")
                     {
@@ -110,45 +111,45 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
                 }
 
                 var q = title.ToLower().Trim();
-                if (author != null)
+                if (publisher != null)
                 {
-                    q += " " + author;
+                    q += " " + publisher;
                 }
 
                 return SearchByField("all", q);
             }
             catch (HttpException)
             {
-                throw new GoodreadsException("Search for '{0}' failed. Unable to communicate with Goodreads.", title);
+                throw new ComicvineException("Search for '{0}' failed. Unable to communicate with Comicvine.", title);
             }
             catch (Exception ex)
             {
                 _logger.Warn(ex, ex.Message);
-                throw new GoodreadsException("Search for '{0}' failed. Invalid response received from Goodreads.",
+                throw new ComicvineException("Search for '{0}' failed. Invalid response received from Comicvine.",
                     title);
             }
         }
 
-        public List<Book> SearchByIsbn(string isbn)
+        public List<Comic> SearchByIsbn(string isbn)
         {
             return SearchByField("isbn", isbn, e => e.Isbn13 = isbn);
         }
 
-        public List<Book> SearchByAsin(string asin)
+        public List<Comic> SearchByAsin(string asin)
         {
             return SearchByField("asin", asin, e => e.Asin = asin);
         }
 
-        public List<Book> SearchByGoodreadsId(int id)
+        public List<Comic> SearchByComicvineId(int id)
         {
             try
             {
-                var remote = _bookInfo.GetBookInfo(id.ToString());
+                var remote = _comicInfo.GetComicInfo(id.ToString());
 
-                var book = _bookService.FindById(remote.Item2.ForeignBookId);
-                var result = book ?? remote.Item2;
+                var comic = _comicService.FindById(remote.Item2.ForeignComicId);
+                var result = comic ?? remote.Item2;
 
-                // at this point, book could have the wrong edition.
+                // at this point, comic could have the wrong edition.
                 // Check if we already have the correct edition.
                 var remoteEdition = remote.Item2.Editions.Value.Single(x => x.Monitored);
                 var localEdition = _editionService.GetEditionByForeignEditionId(remoteEdition.ForeignEditionId);
@@ -164,27 +165,27 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
                     result.Editions.Value.Add(remoteEdition);
                 }
 
-                var author = _authorService.FindById(remote.Item1);
-                if (author == null)
+                var publisher = _publisherService.FindById(remote.Item1);
+                if (publisher == null)
                 {
-                    author = new Author
+                    publisher = new Publisher
                     {
-                        CleanName = Parser.Parser.CleanAuthorName(remote.Item2.AuthorMetadata.Value.Name),
-                        Metadata = remote.Item2.AuthorMetadata.Value
+                        CleanName = Parser.Parser.CleanPublisherName(remote.Item2.PublisherMetadata.Value.Name),
+                        Metadata = remote.Item2.PublisherMetadata.Value
                     };
                 }
 
-                result.Author = author;
+                result.Publisher = publisher;
 
-                return new List<Book> { result };
+                return new List<Comic> { result };
             }
-            catch (BookNotFoundException)
+            catch (ComicNotFoundException)
             {
-                return new List<Book>();
+                return new List<Comic>();
             }
         }
 
-        public List<Book> SearchByField(string field, string query, Action<Edition> applyData = null)
+        public List<Comic> SearchByField(string field, string query, Action<Edition> applyData = null)
         {
             try
             {
@@ -199,48 +200,48 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
             }
             catch (HttpException)
             {
-                throw new GoodreadsException("Search for {0} '{1}' failed. Unable to communicate with Goodreads.", field, query);
+                throw new ComicvineException("Search for {0} '{1}' failed. Unable to communicate with Comicvine.", field, query);
             }
             catch (Exception ex)
             {
                 _logger.Warn(ex, ex.Message);
-                throw new GoodreadsException("Search for {0} '{1}' failed. Invalid response received from Goodreads.", field, query);
+                throw new ComicvineException("Search for {0} '{1}' failed. Invalid response received from Comicvine.", field, query);
             }
         }
 
         public List<object> SearchForNewEntity(string title)
         {
-            var books = SearchForNewBook(title, null);
+            var comics = SearchForNewComic(title, null);
 
             var result = new List<object>();
-            foreach (var book in books)
+            foreach (var comic in comics)
             {
-                var author = book.Author.Value;
+                var publisher = comic.Publisher.Value;
 
-                if (!result.Contains(author))
+                if (!result.Contains(publisher))
                 {
-                    result.Add(author);
+                    result.Add(publisher);
                 }
 
-                result.Add(book);
+                result.Add(comic);
             }
 
             return result;
         }
 
-        private Book MapJsonSearchResult(SearchJsonResource resource, Action<Edition> applyData = null)
+        private Comic MapJsonSearchResult(SearchJsonResource resource, Action<Edition> applyData = null)
         {
-            var book = _bookService.FindById(resource.WorkId.ToString());
-            var edition = _editionService.GetEditionByForeignEditionId(resource.BookId.ToString());
+            var comic = _comicService.FindById(resource.WorkId.ToString());
+            var edition = _editionService.GetEditionByForeignEditionId(resource.ComicId.ToString());
 
             if (edition == null)
             {
                 edition = new Edition
                 {
-                    ForeignEditionId = resource.BookId.ToString(),
-                    Title = resource.BookTitleBare,
-                    TitleSlug = resource.BookId.ToString(),
-                    Ratings = new Ratings { Votes = resource.RatingsCount, Value = resource.AverageRating },
+                    ForeignEditionId = resource.ComicId.ToString(),
+                    Title = resource.ComicTitleBare,
+                    TitleSlug = resource.ComicId.ToString(),
+                    /*Ratings = new Ratings { Votes = resource.RatingsCount, Value = resource.AverageRating },*/
                     PageCount = resource.PageCount,
                     Overview = resource.Description?.Html ?? string.Empty
                 };
@@ -263,56 +264,56 @@ namespace NzbDrone.Core.MetadataSource.Goodreads
                 });
             }
 
-            if (book == null)
+            if (comic == null)
             {
-                book = new Book
+                comic = new Comic
                 {
-                    ForeignBookId = resource.WorkId.ToString(),
-                    Title = resource.BookTitleBare,
+                    ForeignComicId = resource.WorkId.ToString(),
+                    Title = resource.ComicTitleBare,
                     TitleSlug = resource.WorkId.ToString(),
-                    Ratings = new Ratings { Votes = resource.RatingsCount, Value = resource.AverageRating },
+                    /*Ratings = new Ratings { Votes = resource.RatingsCount, Value = resource.AverageRating },*/
                     AnyEditionOk = true
                 };
             }
 
-            if (book.Editions != null)
+            if (comic.Editions != null)
             {
-                if (book.Editions.Value.Any())
+                if (comic.Editions.Value.Any())
                 {
                     edition.Monitored = false;
                 }
 
-                book.Editions.Value.Add(edition);
+                comic.Editions.Value.Add(edition);
             }
             else
             {
-                book.Editions = new List<Edition> { edition };
+                comic.Editions = new List<Edition> { edition };
             }
 
-            var authorId = resource.Author.Id.ToString();
-            var author = _authorService.FindById(authorId);
+            var publisherId = resource.Publisher.Id.ToString();
+            var publisher = _publisherService.FindById(publisherId);
 
-            if (author == null)
+            if (publisher == null)
             {
-                author = new Author
+                publisher = new Publisher
                 {
-                    CleanName = Parser.Parser.CleanAuthorName(resource.Author.Name),
-                    Metadata = new AuthorMetadata()
+                    CleanName = Parser.Parser.CleanPublisherName(resource.Publisher.Name),
+                    Metadata = new PublisherMetadata()
                     {
-                        ForeignAuthorId = resource.Author.Id.ToString(),
-                        Name = DuplicateSpacesRegex.Replace(resource.Author.Name, " "),
-                        TitleSlug = resource.Author.Id.ToString()
+                        ForeignPublisherId = resource.Publisher.Id.ToString(),
+                        Name = DuplicateSpacesRegex.Replace(resource.Publisher.Name, " "),
+                        /*TitleSlug = resource.Publisher.Id.ToString()*/
                     }
                 };
             }
 
-            book.Author = author;
-            book.AuthorMetadata = book.Author.Value.Metadata.Value;
-            book.AuthorMetadataId = author.AuthorMetadataId;
-            book.CleanTitle = book.Title.CleanAuthorName();
-            book.SeriesLinks = GoodreadsProxy.MapSearchSeries(resource.Title, resource.BookTitleBare);
+            comic.Publisher = publisher;
+            comic.PublisherMetadata = comic.Publisher.Value.Metadata.Value;
+            comic.PublisherMetadataId = publisher.PublisherMetadataId;
+            comic.CleanTitle = comic.Title.CleanPublisherName();
+            /*comic.SeriesLinks = ComicvineProxy.MapSearchSeries(resource.Title, resource.ComicTitleBare);*/
 
-            return book;
+            return comic;
         }
     }
 }

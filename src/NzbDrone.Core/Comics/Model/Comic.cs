@@ -23,7 +23,7 @@ namespace NzbDrone.Core.Comics
         // These correspond to columns in the Books table
         // These are metadata entries
         public int PublisherMetadataId { get; set; }
-        public string ForeignBookId { get; set; }
+        public string ForeignComicId { get; set; }
         public string TitleSlug { get; set; }
         public string Title { get; set; }
         public DateTime? ReleaseDate { get; set; }
@@ -47,8 +47,8 @@ namespace NzbDrone.Core.Comics
         [MemberwiseEqualityIgnore]
         public LazyLoaded<Publisher> Publisher { get; set; }
         [MemberwiseEqualityIgnore]
-/*        public LazyLoaded<List<Edition>> Editions { get; set; }
-        [MemberwiseEqualityIgnore]*/
+        public LazyLoaded<List<Edition>> Editions { get; set; }
+        [MemberwiseEqualityIgnore]
         public LazyLoaded<List<BookFile>> BookFiles { get; set; }
         [MemberwiseEqualityIgnore]
 /*        public LazyLoaded<List<SeriesBookLink>> SeriesLinks { get; set; }*/
@@ -64,12 +64,12 @@ namespace NzbDrone.Core.Comics
 
         public override string ToString()
         {
-            return string.Format("[{0}][{1}]", ForeignBookId, Title.NullSafe());
+            return string.Format("[{0}][{1}]", ForeignComicId, Title.NullSafe());
         }
 
         public override void UseMetadataFrom(Comic other)
         {
-            ForeignBookId = other.ForeignBookId;
+            ForeignComicId = other.ForeignComicId;
             TitleSlug = other.TitleSlug;
             Title = other.Title;
             ReleaseDate = other.ReleaseDate;
@@ -93,7 +93,7 @@ namespace NzbDrone.Core.Comics
 
         public override void ApplyChanges(Comic other)
         {
-            ForeignBookId = other.ForeignBookId;
+            ForeignComicId = other.ForeignComicId;
             AddOptions = other.AddOptions;
             Monitored = other.Monitored;
             AnyEditionOk = other.AnyEditionOk;
